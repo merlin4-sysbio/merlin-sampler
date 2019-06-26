@@ -9,14 +9,21 @@
     
     <extensions>
         <extension uid="aibench.core" name="aibench.core.operation-definition"
-            class="pt.uminho.ceb.biosystems.merlin.merlin_transyt.TranSyTRetriever">
-            <operation-description name="TranSyT"
-                path="40@model/" uid="operations.TranSyT.ID" />
+            class="pt.uminho.ceb.biosystems.merlin.sampler.AnnotationEnzymesParametersSetting">
+            <operation-description name="SamPler"
+                path="10@annotation/150@enzymes/" uid="operations.AnnotationEnzymesParametersSetting.ID" />
         </extension>
-
+        
+        <extension uid="aibench.core"
+			name="aibench.core.operation-definition"
+			class="pt.uminho.ceb.biosystems.merlin.sampler.AnnotationEnzymesBestAlpha">
+			<operation-description name="find best alpha"
+				path="" uid="operations.AnnotationEnzymesBestAlpha.ID" />
+		</extension>
+        
        <extension uid="aibench.workbench" name="aibench.workbench.view">
-            <icon-operation operation="operations.TranSyT.ID"
-               icon="icons/Lifecycle/remote.png" />
+            <icon-operation operation="operations.AnnotationEnzymesParametersSetting.ID"
+               icon="icons/Lifecycle/clipboard.png" />
         </extension>
     </extensions>
 </plugin>
