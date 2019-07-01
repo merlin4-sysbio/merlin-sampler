@@ -305,7 +305,7 @@ public class AnnotationEnzymesParametersSetting {
 
 		if(workspace == null) {
 
-			throw new IllegalArgumentException("No New Project Selected!");
+			throw new IllegalArgumentException("no workspace selected!");
 		}
 		else {
 
