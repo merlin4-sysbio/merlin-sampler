@@ -1,5 +1,6 @@
 package pt.uminho.ceb.biosystems.merlin.sampler;
 
+import java.awt.BorderLayout;
 import java.awt.Dimension;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
@@ -22,12 +23,15 @@ import java.io.PrintWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
+import java.util.Collections;
 import java.util.EventObject;
 import java.util.GregorianCalendar;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import javax.swing.BorderFactory;
 import javax.swing.ImageIcon;
@@ -49,9 +53,12 @@ import javax.swing.event.TableModelEvent;
 import javax.swing.event.TableModelListener;
 import javax.swing.table.TableColumnModel;
 
+import org.apache.commons.lang.ArrayUtils;
+import org.apache.jcs.access.exception.InvalidArgumentException;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.ss.usermodel.Workbook;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
 import es.uvigo.ei.aibench.core.Core;
@@ -60,24 +67,26 @@ import es.uvigo.ei.aibench.core.operation.OperationDefinition;
 import es.uvigo.ei.aibench.workbench.Workbench;
 import es.uvigo.ei.aibench.workbench.utilities.Utilities;
 import pt.uminho.ceb.biosystems.merlin.aibench.datatypes.annotation.AnnotationEnzymesAIB;
+import pt.uminho.ceb.biosystems.merlin.aibench.gui.CustomGUI;
 import pt.uminho.ceb.biosystems.merlin.aibench.utilities.ComboBoxColumn;
 import pt.uminho.ceb.biosystems.merlin.aibench.utilities.CreateImageIcon;
 import pt.uminho.ceb.biosystems.merlin.aibench.utilities.LinkOut;
 import pt.uminho.ceb.biosystems.merlin.aibench.utilities.MyJTable;
+import pt.uminho.ceb.biosystems.merlin.aibench.utilities.TimeLeftProgress;
 import pt.uminho.ceb.biosystems.merlin.core.datatypes.WorkspaceDataTable;
 import pt.uminho.ceb.biosystems.merlin.core.datatypes.WorkspaceGenericDataTable;
+import pt.uminho.ceb.biosystems.merlin.utilities.datastructures.map.MapUtils;
 import pt.uminho.ceb.biosystems.merlin.utilities.io.FileUtils;
 
 public class EnzymesAnnotationJDialog extends javax.swing.JDialog {
 
+	private static final int STARTCOLUMN = 0, FINISHCOLUMN = 1;
+	private static final int LOCUS_TAG_COLUMN_NUMBER = 1, EC_NUMBERS_COLUMN_NUMBER = 6, EC_SCORE_COLUMN_NUMBER = 7;
 	private static final long serialVersionUID = -1L;
 	private JPanel jPanel1, jPanel2;
 	private JScrollPane jScrollPane;
-	private JTextField jTextField;
+	private JTextField jSampleSizeTextField;
 	private JLabel jLabel1, jLabel2;
-	private int locus_tagColumnNumber;
-	private int ecnumbersColumnNumber;
-	private int ecScoreColumnNumber;
 	private MouseListener enzymesMouseAdapter;
 	private ItemListener enzymesItemListener;
 	private PopupMenuListener enzymesPopupMenuListener;
@@ -92,8 +101,18 @@ public class EnzymesAnnotationJDialog extends javax.swing.JDialog {
 	private TableModelListener tableModelListener;
 	@SuppressWarnings("unused")
 	private int selectedModelRow;
-	private WorkspaceDataTable data;
+	private WorkspaceDataTable randomTable;
 	private String blastDatabase;
+	private TimeLeftProgress progress = new TimeLeftProgress();
+	private AtomicBoolean cancel = new AtomicBoolean(false);
+	private AtomicInteger querySize;
+	private AtomicInteger counter = new AtomicInteger(0);
+	private WorkspaceDataTable mainTableData;
+	private boolean searchFile = true;
+	private Map<Integer,String> ecTable = new TreeMap<Integer,String>();
+	private long startTime;
+	private Integer totalOfMetabolicGenes;
+
 
 	/**
 	 * @param sampleSize
@@ -105,20 +124,16 @@ public class EnzymesAnnotationJDialog extends javax.swing.JDialog {
 	 * @param data
 	 * @param homologyDataContainer
 	 */
-	public EnzymesAnnotationJDialog(String blastDatabase, int sampleSize, int ecnumbersColumnNumber, int ecScoreColumnNumber, Map<Integer, String> values, Map<Integer, String> itemsList, 
-			int locus_tagColumnNumber, WorkspaceDataTable data, AnnotationEnzymesAIB homologyDataContainer, Map<Integer,String> ecMap) {
+	public EnzymesAnnotationJDialog(String blastDatabase, int sampleSize, 
+			AnnotationEnzymesAIB homologyDataContainer, boolean searchFile, Integer totalOfMetabolicGenes) {
 
 		super(Workbench.getInstance().getMainFrame());
-		this.locus_tagColumnNumber = locus_tagColumnNumber;
-		this.ecnumbersColumnNumber = ecnumbersColumnNumber;
-		this.ecScoreColumnNumber = ecScoreColumnNumber;
-		this.itemsList = itemsList;
 		this.homologyDataContainer = homologyDataContainer;
-		this.values = values;
-		this.data = data;
 		this.sampleSize = sampleSize;
-		this.ecMap = ecMap;
 		this.blastDatabase = blastDatabase;
+		this.totalOfMetabolicGenes = totalOfMetabolicGenes;
+
+		generateTable(searchFile);
 
 		this.addMouseListener();
 		this.addTableModelListener();
@@ -132,14 +147,14 @@ public class EnzymesAnnotationJDialog extends javax.swing.JDialog {
 		initGUI();
 		Utilities.centerOnOwner(this);
 		this.setVisible(true);		
-//		this.setAlwaysOnTop(true);
+		//		this.setAlwaysOnTop(true);
 		this.toFront();
 	}
 
 	private void initGUI() {
 
 		try {
-			
+
 			GridBagLayout thisLayout = new GridBagLayout();
 			thisLayout.columnWeights = new double[] {0.0, 0.1, 0.0};
 			thisLayout.columnWidths = new int[] {7, 7, 7};
@@ -147,7 +162,7 @@ public class EnzymesAnnotationJDialog extends javax.swing.JDialog {
 			thisLayout.rowHeights = new int[] {7, 50, 7, 3, 7};
 			this.setLayout(thisLayout);
 			this.setPreferredSize(new Dimension(875, 585));
-			this.setSize(550, 600);
+			this.setSize(550, 800);
 			{
 				this.setTitle("sample selection window");
 
@@ -179,23 +194,22 @@ public class EnzymesAnnotationJDialog extends javax.swing.JDialog {
 
 						jLabel1 = new JLabel();
 						jPanel2.add(jLabel1, new GridBagConstraints(0, 1, 1, 1, 0.0, 0.0, GridBagConstraints.CENTER, GridBagConstraints.NONE, new Insets(0, 0, 0, 0), 0, 0));
-						jLabel1.setText("sample size:");
-						jLabel1.setLabelFor(jTextField);
+						jLabel1.setText("new sample size (%):");
+						jLabel1.setLabelFor(jSampleSizeTextField);
 
 						jLabel2 = new JLabel();
 						jPanel2.add(jLabel2, new GridBagConstraints(0, 2, 1, 1, 0.0, 0.0, GridBagConstraints.WEST, GridBagConstraints.NONE, new Insets(0, 0, 0, 0), 0, 0));
 
-						jTextField = new JTextField(""+getSampleSize(), 2);
-						jPanel2.add(jTextField, new GridBagConstraints(1, 1, 2, 1, 2.0, 0.0, GridBagConstraints.CENTER, GridBagConstraints.NONE, new Insets(0, 0, 0, 0), 0, 0));
-						jTextField.setText(""+getSampleSize());
-						jTextField.setToolTipText("Enter the size for the sample");
-						jTextField.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createEtchedBorder(BevelBorder.LOWERED),null));
-						jTextField.setBounds(164, 57, 36, 20);
+						jSampleSizeTextField = new JTextField("", 3);
+						jPanel2.add(jSampleSizeTextField, new GridBagConstraints(1, 1, 2, 1, 2.0, 0.0, GridBagConstraints.CENTER, GridBagConstraints.NONE, new Insets(0, 0, 0, 0), 0, 0));
+						jSampleSizeTextField.setToolTipText("enter the size(%) of the new sample (" + AnnotationEnzymesParametersSetting.DEFAULT_RATIO + " by default)");
+						jSampleSizeTextField.setBorder(BorderFactory.createCompoundBorder(BorderFactory.createEtchedBorder(BevelBorder.LOWERED),null));
+						jSampleSizeTextField.setBounds(164, 57, 36, 20);
 
 						JButton jButtonBestAlpha = new JButton();
 						jPanel2.add(jButtonBestAlpha, new GridBagConstraints(4, 2, 2, 1, 50.0, 0.0, GridBagConstraints.CENTER, GridBagConstraints.NONE, new Insets(0, 0, 0, 0), 0, 0));
 						jButtonBestAlpha.setText("find best parameters");
-						jButtonBestAlpha.setToolTipText("Press to find best parameters.");
+						jButtonBestAlpha.setToolTipText("press to find best parameters.");
 						jButtonBestAlpha.setIcon(new CreateImageIcon(new ImageIcon(getClass().getClassLoader().getResource("icons/Find.png")),0.1).resizeImageIcon());
 						jButtonBestAlpha.setBounds(1, 1, 40, 20);
 						jButtonBestAlpha.addActionListener(new ActionListener() {
@@ -212,9 +226,9 @@ public class EnzymesAnnotationJDialog extends javax.swing.JDialog {
 											new ParamSpec("ecCurated", Map.class, ecCurated, null),
 											new ParamSpec("ecMap", Map.class, ecMap, null),
 											new ParamSpec("homologyDataContainer", AnnotationEnzymesAIB.class, homologyDataContainer, null),
-											new ParamSpec("ecnumbersColumnNumber", Integer.class, ecnumbersColumnNumber, null),
+											new ParamSpec("ecnumbersColumnNumber", Integer.class, EC_NUMBERS_COLUMN_NUMBER, null),
 											new ParamSpec("blastDatabase", String.class, blastDatabase, null),
-											new ParamSpec("ecScoreColumnNumber", Integer.class, ecScoreColumnNumber, null)
+											new ParamSpec("ecScoreColumnNumber", Integer.class, EC_SCORE_COLUMN_NUMBER, null)
 									};
 
 									for (@SuppressWarnings("rawtypes") OperationDefinition def : Core.getInstance().getOperations()){
@@ -228,7 +242,7 @@ public class EnzymesAnnotationJDialog extends javax.swing.JDialog {
 								catch (Exception e) {
 									e.printStackTrace();
 									Workbench.getInstance().error("an error occurred while calculating best parameters");
-									
+
 								}
 
 								simpleFinish();
@@ -245,49 +259,58 @@ public class EnzymesAnnotationJDialog extends javax.swing.JDialog {
 
 							public void actionPerformed(ActionEvent arg0) {
 
-								if (isInteger(jTextField.getText()) == true){
-									int size = Integer.parseInt(jTextField.getText());
-									if (size > 0){
-										updateSampleSize(size);
-//										generateTable(false);
+								if (isInteger(jSampleSizeTextField.getText()) == true){
+									int size = Integer.parseInt(jSampleSizeTextField.getText());
+									if (size > 0 && size < 100){
 										
-										ParamSpec[] paramsSpec = new ParamSpec[]{
-												new ParamSpec("locusTagColumnNumber", Integer.class, locus_tagColumnNumber, null),
-												new ParamSpec("homologyDataContainer", AnnotationEnzymesAIB.class, homologyDataContainer, null),
-												new ParamSpec("ecnumbersColumnNumber", Integer.class, ecnumbersColumnNumber, null),
-												new ParamSpec("ecScoreColumnNumber", Integer.class, ecScoreColumnNumber, null),
-												new ParamSpec("sampleSize", Integer.class, sampleSize, null),
-												new ParamSpec("itemsList", Map.class, itemsList, null),
-												new ParamSpec("blastDatabase", String.class, blastDatabase, null),
-												new ParamSpec("searchFile", Boolean.class, false, null),
-										};
+										try {
+											sampleSize = (int)(totalOfMetabolicGenes * (size/100.0));
+											
+											renderWaitMessage();
 
-										for (@SuppressWarnings("rawtypes") OperationDefinition def : Core.getInstance().getOperations()){
-											if (def.getID().equals("operations.AnnotationEnzymesParametersSetting.ID")){
+											boolean generateNew = resetTable();
+											
+//											System.out.println(sampleSize);
 
-												Workbench.getInstance().executeOperation(def, paramsSpec);
+											if(generateNew) {
+												new EnzymesAnnotationJDialog(blastDatabase, sampleSize, 
+														homologyDataContainer, false, totalOfMetabolicGenes);
+												simpleFinish();
 											}
+											else
+												jScrollPane.setViewportView(newjTable);
+
+										} catch (Exception e) {
+											Workbench.getInstance().error(e);
+											e.printStackTrace();
 										}
+					
+
+										//										generateTable(false);
+
 										
-										simpleFinish();
-										
-//										jLabel2.setText("sample retrieved: " + getTableSize());
+
+										//										jLabel2.setText("sample retrieved: " + getTableSize());
 									}
 									else{
-										JOptionPane.showMessageDialog(rootPane, "just positive values allowed");
+										Workbench.getInstance().error("value must be > 0 and < 100!");
+										jSampleSizeTextField.setText("");
+//										JOptionPane.showMessageDialog(rootPane, "value must be > 0 and < 100!");
 									}
 								}
 								else{
-									JOptionPane.showMessageDialog(rootPane, "please insert an integer");
+									Workbench.getInstance().error("please insert an integer");
+									jSampleSizeTextField.setText("");
+//									JOptionPane.showMessageDialog(rootPane, "please insert an integer");
 								}
 							}});
 					}
-					
+
 					{
 						JButton jButtonExport = new JButton();
 						jPanel2.add(jButtonExport, new GridBagConstraints(5, 1, 1, 1, 50.0, 0.0, GridBagConstraints.CENTER, GridBagConstraints.NONE, new Insets(0, 0, 0, 0), 0, 0));
 						jButtonExport.setText("export file");
-						jButtonExport.setToolTipText("export to excel file (xls)");
+						jButtonExport.setToolTipText("export to excel file (xlsx)");
 						jButtonExport.setIcon(new CreateImageIcon(new ImageIcon(getClass().getClassLoader().getResource("icons/Download.png")),0.1).resizeImageIcon());
 						jButtonExport.setBounds(1, 1, 40, 20);
 						jButtonExport.addActionListener(new ActionListener() {
@@ -311,26 +334,26 @@ public class EnzymesAnnotationJDialog extends javax.swing.JDialog {
 										int hour24 = cal.get(Calendar.HOUR_OF_DAY);     // 0..23
 										int min = cal.get(Calendar.MINUTE);             // 0..59
 										int day = cal.get(Calendar.DAY_OF_YEAR);		//0..365
-										
+
 										String name = homologyDataContainer.getWorkspace().getName();
-										
+
 										excelFileName += "/"+name+"_"+hour24+"_"+min+"_"+day+".xlsx";
-										
+
 										String sheetName = "annotation";
 
-										XSSFWorkbook wb = new XSSFWorkbook();
+										Workbook wb = new XSSFWorkbook();
 										Sheet sheet = wb.createSheet(sheetName) ;
-										
+
 										WorkspaceDataTable table = createTableToExport();
-										
+
 										Row row = sheet.createRow(0);
-										
+
 										TableColumnModel tc = newjTable.getColumnModel();
 
 										int i = 0;
-										
+
 										while (i < tc.getColumnCount()) {
-											
+
 											row.createCell(i).setCellValue(tc.getColumn(i).getHeaderValue().toString());
 											i++;
 										}
@@ -339,24 +362,24 @@ public class EnzymesAnnotationJDialog extends javax.swing.JDialog {
 										for (int r=0;r < table.getRowCount(); r++ )
 										{
 											row = sheet.createRow(r+2);
-									
+
 											//iterating c number of columns
 											for (int c=0;c < table.getColumnCount(); c++ )
 											{
 												Cell cell = row.createCell(c);
-												
+
 												cell.setCellValue(table.getValueAt(r, c).toString());
 											}
 										}
-										
+
 										FileOutputStream fileOut = new FileOutputStream(excelFileName);
-										
+
 										//write this workbook to an Outputstream.
 										wb.write(fileOut);
 										fileOut.flush();
 										wb.close();
 										fileOut.close();
-										
+
 										Workbench.getInstance().info("data successfully exported.");
 									}
 								} catch (Exception e) {
@@ -366,7 +389,7 @@ public class EnzymesAnnotationJDialog extends javax.swing.JDialog {
 								}
 							}});
 					}
-					
+
 					{
 						JButton jButtonSave = new JButton();
 						jPanel2.add(jButtonSave, new GridBagConstraints(6, 1, 1, 1, 50.0, 0.0, GridBagConstraints.CENTER, GridBagConstraints.NONE, new Insets(0, 0, 0, 0), 0, 0));
@@ -398,32 +421,28 @@ public class EnzymesAnnotationJDialog extends javax.swing.JDialog {
 						jButtonClose.addActionListener(new ActionListener() {
 
 							public void actionPerformed(ActionEvent arg0) {
-								
+
 								simpleFinish();
 							}});
 					}
 				}
 			}
-			
-			newjTable.setModel(data);
+
+			newjTable.setModel(randomTable);
 			newjTable.setSortableFalse();
 			ecList = new ComboBoxColumn(newjTable, 1, values , this.enzymesItemListener, this.enzymesMouseAdapter, this.enzymesPopupMenuListener);
-			
+
 			newjTable.setRowHeight(20);
-					
+
 			jScrollPane.setViewportView(newjTable);
 
 			jLabel2.setText("sample retrieved: " + getTableSize());
 
-//			this.setModal(true);
+			//			this.setModal(true);
 		}
 		catch(Exception e){
 			e.printStackTrace();
 		}
-	}
-
-	private void updateSampleSize (int newSize){
-		sampleSize=newSize;
 	}
 
 	private int getSampleSize(){
@@ -443,55 +462,86 @@ public class EnzymesAnnotationJDialog extends javax.swing.JDialog {
 		return ecMap.size();
 	}
 
-//	private void generateTable(boolean searchFile){ 		
-//
-//		double userThreshold = homologyDataContainer.getThreshold();
-//		double userAlpha = homologyDataContainer.getAlpha();
-//		homologyDataContainer.setThreshold(0.0);
-//		homologyDataContainer.setAlpha(0.5);
-//
-//		
-//		
-//		
-//		
-//		if(data!=null && searchFile == true){
-//
-//			DataTable fileTable = eaps.buildTable(data);
-//
-//			newjTable.setModel(fileTable);
-//.setSortableFalse();
-//			ecMap = eaps.getEcMap();
-//			
-//			for (int i: data.keySet())
-//				values.put(Integer.parseInt(ecMap.get(i)), data.get(i));
-//
-//		}
-//		else{
-//
-//			eaps.generateRandomSample(sampleSize);
-//			
-//			ecMap = eaps.getEcMap();
-//			
-//			DataTable randomTable = eaps.buildTable(ecMap);
-//
-//			newjTable.setModel(randomTable);
-//
-//			for(int i  : ecMap.keySet())
-//				values.put(Integer.parseInt(ecMap.get(i)), this.itemsList.get(i));
-//
-//		}
-//
-//		ecList = new ComboBoxColumn(newjTable, 1, values , this.enzymesItemListener, this.enzymesMouseAdapter, this.enzymesPopupMenuListener);
-//		
-//		newjTable.setRowHeight(20);
-//				
-//		jScrollPane.setViewportView(newjTable);
-//		
-//
-//		homologyDataContainer.setAlpha(userAlpha);
-//		homologyDataContainer.setThreshold(userThreshold);
-//	}
+	private void generateTable(boolean searchFile){ 		
 
+		try {
+			this.startTime = GregorianCalendar.getInstance().getTimeInMillis();
+
+			this.progress.setTime(GregorianCalendar.getInstance().getTimeInMillis() - this.startTime, 0, 2, "generating random sample...");
+
+			this.itemsList = this.homologyDataContainer.getItemsList().get(1);
+
+			double userThreshold = homologyDataContainer.getThreshold();
+			double userAlpha = homologyDataContainer.getAlpha();
+
+			Map <Integer, String> data = this.openFile();
+
+			this.ecMap = new TreeMap<Integer,String>();
+
+			this.values = new HashMap<>();
+
+			//put the container with the correct settings for selection
+			if(!this.cancel.get()){
+
+				if(userThreshold != 0.0)
+					homologyDataContainer.setThreshold(0.0);
+
+				if(userAlpha != 0.5)
+					homologyDataContainer.setAlpha(0.5);
+			}
+
+			this.mainTableData = homologyDataContainer.getAllGenes(this.blastDatabase, false);
+
+			if(data!=null && searchFile == true && !this.cancel.get()){
+
+				randomTable = this.buildTable(data);
+
+				ecMap = this.getEcMap();
+
+				for (int i: data.keySet())
+					values.put(Integer.parseInt(ecMap.get(i)), data.get(i));
+			}
+			else{
+				if(!this.cancel.get())
+					this.generateRandomSample(sampleSize);
+
+				ecMap = this.getEcMap();
+
+				randomTable = this.buildTable(ecMap);
+
+				for(int i  : ecMap.keySet())
+					values.put(Integer.parseInt(ecMap.get(i)), itemsList.get(i));
+			}
+
+			//restore user's settings
+			if(!this.cancel.get()){
+
+				if(userThreshold != 0.0)
+					homologyDataContainer.setThreshold(userThreshold);
+
+				if(userAlpha != 0.5)
+					homologyDataContainer.setAlpha(userAlpha);
+
+			}
+		} 
+		catch (Exception e) {
+			Workbench.getInstance().error(e);
+			e.printStackTrace();
+		}
+	}
+
+	private void renderWaitMessage() {
+
+		jScrollPane.setViewportView(new RenderingMessageComponent("Generating new sample, please wait..."));
+
+		jPanel1.add(jScrollPane, new GridBagConstraints(0, 0, 1, 2, 0.0, 0.0, GridBagConstraints.CENTER, GridBagConstraints.BOTH, new Insets(0, 0, 0, 0), 0, 0));
+
+		jScrollPane.revalidate();
+		jScrollPane.repaint();
+
+
+
+	}
 	private ItemListener getComboBoxEnzymesItemListener() {
 
 		return new ItemListener() {
@@ -682,37 +732,37 @@ public class EnzymesAnnotationJDialog extends javax.swing.JDialog {
 	}
 
 	public void simpleFinish() {
-		
+
 		this.setVisible(false);
 		this.dispose();
 	}
 
 	private void writeNewFile() throws IOException{
-		
+
 		try {
-			String projectName = homologyDataContainer.getWorkspace().getName();
-			
+			String databaseName = homologyDataContainer.getWorkspace().getName();
+
 			Long taxonomyID = homologyDataContainer.getWorkspace().getTaxonomyID();
-			
+
 			String fileName =  "AutoGeneSelection_" + this.blastDatabase + ".txt";
-			
+
 			if(blastDatabase.isEmpty())
 				fileName =  "AutoGeneSelection.txt";
-			
-			String path = FileUtils.getWorkspaceTaxonomyFolderPath(projectName, taxonomyID) + fileName;
+
+			String path = FileUtils.getWorkspaceTaxonomyFolderPath(databaseName, taxonomyID) + fileName;
 			File file = new File(path);
 			PrintWriter out = new PrintWriter(new BufferedWriter(new FileWriter(file)));
-	
+
 			for (int i: ecMap.keySet())
 				out.write(i + "\t" + ecList.getValues().get(Integer.parseInt(ecMap.get(i))) + "\n");
-			
+
 			out.close();
 		}
 		catch (IOException e) {
-			
+
 			System.out.println("FILE NOT FOUND!!");
-			
-//			e.printStackTrace();
+
+			//			e.printStackTrace();
 		}
 	}
 
@@ -721,23 +771,204 @@ public class EnzymesAnnotationJDialog extends javax.swing.JDialog {
 	 * @return DataTable
 	 */
 	private WorkspaceDataTable createTableToExport(){
-		
+
 		List<String> columnsNames = Arrays.asList("gene", "EC number");
-		
+
 		WorkspaceDataTable data = new WorkspaceGenericDataTable(columnsNames, "", "");  
-		
+
 		for (int i = 0; i < newjTable.getRowCount(); i++){
-			
+
 			ArrayList<Object> line = new ArrayList<>();
-			
+
 			line.add(newjTable.getValueAt(i, 0));
 			line.add(ecList.getSelectItem(i));
-			
+
 			data.addLine(line);
 		}
 		return data;		
 	}
 
+
+	/**
+	 * Read file with previous selection.
+	 * 
+	 * @return
+	 */
+	private Map<Integer, String> openFile() {
+
+		String databaseName = homologyDataContainer.getWorkspace().getName();
+		Long taxonomyID = homologyDataContainer.getWorkspace().getTaxonomyID();
+
+		String fileName =  "AutoGeneSelection_" + this.blastDatabase + ".txt";
+
+		if(blastDatabase.isEmpty())
+			fileName =  "AutoGeneSelection.txt";
+
+		String path = FileUtils.getWorkspaceTaxonomyFolderPath(databaseName, taxonomyID) + fileName;
+
+		Map<Integer, String> data = null;
+
+		try {
+			data = 	MapUtils.readFile(path, STARTCOLUMN, FINISHCOLUMN, "\t");
+		}
+		catch (IOException e) {
+		}
+		catch (Exception e) {
+			e.printStackTrace();
+		}
+		return data;
+	}
+
+
+	/**
+	 * Constructs the table with the random sample generated before.
+	 * 
+	 * @param ecKey
+	 * @return DataTable with two columns containing "gene" and "ec number"
+	 */
+	public WorkspaceDataTable buildTable(Map<Integer, String> ecKey){
+
+		List<String> columnsNames = Arrays.asList("gene", "EC number");
+		WorkspaceDataTable data = new WorkspaceGenericDataTable(columnsNames, "", "");
+
+		int i=0;
+
+		for (Integer key: ecKey.keySet()){
+
+			ArrayList<Object> line = new ArrayList<>();
+
+			String name = (String) mainTableData.getValueAt(key, LOCUS_TAG_COLUMN_NUMBER);
+			String[] ecNumber = (String[]) ArrayUtils.addAll(new String[]{"other ec number"},(String[]) mainTableData.getValueAt(key, EC_NUMBERS_COLUMN_NUMBER));	
+
+			line.add(name);
+			line.add(ecNumber);
+
+			data.addLine(line);
+			this.ecTable.put(key, i+"");
+			i++;
+		}
+		return data;
+	}
+
+	/**
+	 * Method to generate the random sample with a given size.
+	 * 
+	 * @param newtablesize
+	 */
+	public void generateRandomSample(int newtablesize) {
+
+		List<Integer> count = IntervalRange(newtablesize);
+		List<Integer> tablerows = new ArrayList<Integer>();	
+
+		for (int i=0; i<mainTableData.getRowCount(); i++){
+
+			String score = (String) mainTableData.getValueAt(i, EC_SCORE_COLUMN_NUMBER);
+
+			if (!score.isEmpty() && !score.equals("manual")){
+				tablerows.add(i);
+			}
+		}
+
+		Collections.shuffle(tablerows);
+
+		int i=0;
+		int j=0;
+
+		while (sum(count)!=0 && i<tablerows.size() && !this.cancel.get()) {
+
+			String score = (String) mainTableData.getValueAt(tablerows.get(i), EC_SCORE_COLUMN_NUMBER);
+			double value = Double.parseDouble(score.replace("<", ""));
+			boolean flag = false;
+
+			if (value >= 0 && value <0.1 && count.get(0) != 0){ count.set(0, count.get(0)-1); flag = true;}
+			else if (value >= 0.1 && value <0.2 && count.get(1) != 0){ count.set(1, count.get(1)-1); flag = true;}
+			else if (value >= 0.2 && value <0.3 && count.get(2) != 0){ count.set(2, count.get(2)-1); flag = true;}
+			else if (value >= 0.3 && value <0.4 && count.get(3) != 0){ count.set(3, count.get(3)-1); flag = true;}
+			else if (value >= 0.4 && value <0.5 && count.get(4) != 0){ count.set(4, count.get(4)-1); flag = true;}
+			else if (value >= 0.5 && value <0.6 && count.get(5) != 0){ count.set(5, count.get(5)-1); flag = true;}
+			else if (value >= 0.6 && value <0.7 && count.get(6) != 0){ count.set(6, count.get(6)-1); flag = true;}
+			else if (value >= 0.7 && value <0.8 && count.get(7) != 0){ count.set(7, count.get(7)-1); flag = true;}
+			else if (value >= 0.8 && value <0.9 && count.get(8) != 0){ count.set(8, count.get(8)-1); flag = true;}
+			else if (value >= 0.9 && value <=1 && count.get(9) != 0){ count.set(9, count.get(9)-1); flag = true;}
+
+
+			if (flag == true){
+
+				ecTable.put(tablerows.get(i), j+"");
+				j++;
+			}
+			i++;
+		}	
+	}
+
+	/**
+	 * Get the random sample.
+	 * 
+	 * @return 
+	 */
+	public Map<Integer,String> getEcMap(){
+
+		return ecTable;
+	}
+
+	private List<Integer> IntervalRange(int tableSize){
+
+		int n_intervals = 10;
+		List<Integer> intervals = new ArrayList<Integer>();
+
+		int n = tableSize/n_intervals;
+		
+		if(n == 0)
+			n = 1;
+
+		for (int i = 0; i < n_intervals; i++){
+			intervals.add(i, n);
+		}
+		return intervals;
+	}	
+
+	private int sum(List<Integer> list){
+
+		int total = 0;
+		for (int i=0; i<list.size();i++){
+			total = total + list.get(i);
+		}
+		return total;	
+	}
+
+	/**
+	 * @return
+	 */
+	private boolean resetTable() {
+
+		int i = CustomGUI.stopQuestion("Continue", 
+				"this action will discard all your annotations in this sample. continue?",
+				new String[]{"Yes", "No"});
+
+
+		switch (i)
+		{
+		case 0:
+		{
+			return true;
+		}
+		default:
+		{
+			return false;
+		}
+		}
+	}
+
+	class RenderingMessageComponent extends JPanel{
+		private static final long serialVersionUID = 1L;
+
+		public RenderingMessageComponent(String message){
+			this.setLayout(new BorderLayout());
+			JLabel label = new JLabel(message);
+			label.setHorizontalAlignment(JLabel.CENTER);
+			this.add(label, BorderLayout.CENTER);
+		}
+	}
 }
 
 

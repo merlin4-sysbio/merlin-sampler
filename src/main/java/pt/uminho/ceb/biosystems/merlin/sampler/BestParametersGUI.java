@@ -34,7 +34,6 @@ import javax.swing.table.TableCellRenderer;
 import es.uvigo.ei.aibench.workbench.Workbench;
 import es.uvigo.ei.aibench.workbench.utilities.Utilities;
 import pt.uminho.ceb.biosystems.merlin.aibench.datatypes.annotation.AnnotationEnzymesAIB;
-import pt.uminho.ceb.biosystems.merlin.aibench.utilities.BestAlphaStatsCalculator;
 import pt.uminho.ceb.biosystems.merlin.aibench.utilities.CreateImageIcon;
 import pt.uminho.ceb.biosystems.merlin.aibench.utilities.ExportToXLS;
 import pt.uminho.ceb.biosystems.merlin.aibench.utilities.MerlinUtils;
@@ -190,7 +189,7 @@ public class BestParametersGUI extends javax.swing.JDialog{
 											int min = cal.get(Calendar.MINUTE);             // 0..59
 											int day = cal.get(Calendar.DAY_OF_YEAR);		//0..365
 
-											filePath += "/"+homologyDataContainer.getWorkspace().getName()+"_"+homologyDataContainer.getWorkspace().getTaxonomyID()+"_BestParameters_"+hour24+"_"+min+"_"+day+".xlsx";
+											filePath += "/"+homologyDataContainer.getWorkspace().getName()+"_"+homologyDataContainer.getWorkspace().getTaxonomyID()+"_BestParameters_"+hour24+"_"+min+"_"+day+".xls";
 
 											ExportToXLS.exportToXLS(filePath, data, jTable);
 
@@ -214,21 +213,13 @@ public class BestParametersGUI extends javax.swing.JDialog{
 							jButtonApply.addActionListener(new ActionListener() {
 
 								public void actionPerformed(ActionEvent arg0) {
+
+									homologyDataContainer.setThreshold(Double.valueOf(jTable.getValueAt(LOWER_THRESHOLD_ROW, thresholdColIndex)+""));
+									homologyDataContainer.setUpperThreshold(Double.valueOf(jTable.getValueAt(UPPER_THRESHOLD_ROW, thresholdColIndex)+""));
+									homologyDataContainer.setAlpha(bestAlpha);
+									simpleFinish();
 									try {
-
-										homologyDataContainer.setThreshold(Double.valueOf(jTable.getValueAt(LOWER_THRESHOLD_ROW, thresholdColIndex)+""));
-										homologyDataContainer.setUpperThreshold(Double.valueOf(jTable.getValueAt(UPPER_THRESHOLD_ROW, thresholdColIndex)+""));
-										homologyDataContainer.setAlpha(bestAlpha);
-										simpleFinish();
-
-
-										try {
-											homologyDataContainer.commitToDatabase(blastDatabase);
-										}
-										catch (Exception e1) {
-											Workbench.getInstance().error(e1);
-											e1.printStackTrace();
-										}
+										homologyDataContainer.commitToDatabase(blastDatabase);
 
 
 										Connection connection = homologyDataContainer.getConnection();
@@ -250,7 +241,6 @@ public class BestParametersGUI extends javax.swing.JDialog{
 
 									MerlinUtils.updateEnzymesAnnotationView(homologyDataContainer.getWorkspace().getName());
 								}});
-
 						}
 
 					}

@@ -2,7 +2,6 @@ package pt.uminho.ceb.biosystems.merlin.sampler;
 
 
 import java.util.Arrays;
-import java.util.GregorianCalendar;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -17,9 +16,6 @@ import es.uvigo.ei.aibench.core.operation.annotation.Port;
 import es.uvigo.ei.aibench.core.operation.annotation.Progress;
 import es.uvigo.ei.aibench.workbench.Workbench;
 import pt.uminho.ceb.biosystems.merlin.aibench.datatypes.annotation.AnnotationEnzymesAIB;
-import pt.uminho.ceb.biosystems.merlin.aibench.gui.BestParametersGUI;
-import pt.uminho.ceb.biosystems.merlin.aibench.gui.CustomGUI;
-import pt.uminho.ceb.biosystems.merlin.aibench.utilities.BestAlphaStatsCalculator;
 import pt.uminho.ceb.biosystems.merlin.aibench.utilities.TimeLeftProgress;
 import pt.uminho.ceb.biosystems.merlin.core.datatypes.WorkspaceDataTable;
 import pt.uminho.ceb.biosystems.merlin.core.datatypes.WorkspaceGenericDataTable;
@@ -40,7 +36,7 @@ public class AnnotationEnzymesBestAlpha {
 	private double[] upper = new double[11], lower = new double[11];
 	private double[] threshold = {0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9};
 	private double[] alpha = {0.0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0};
-	private AtomicBoolean cancel = new AtomicBoolean(false);
+	private AtomicBoolean cancel = new AtomicBoolean();
 	private TimeLeftProgress progress = new TimeLeftProgress();
 	private String blastDatabase;
 	
@@ -78,31 +74,30 @@ public class AnnotationEnzymesBestAlpha {
 	@Port(direction=Direction.INPUT, name="ecScoreColumnNumber", order=6)
 	public void setEcScoreColumnNumber(int ecScoreColumnNumber){
 
-		this.ecScoreColumnNumber = ecScoreColumnNumber;
-		
 		try {
+			this.ecScoreColumnNumber = ecScoreColumnNumber;
+			
 			if(!this.cancel.get())
 				this.bestAlpha();
-		} 
-		catch (Exception e) {
+			
+			WorkspaceDataTable data = null;
+			
+			Object[] xAndY = BestAlphaStatsCalculator.getXAndY(below, above, total, accuracy);
+			
+			double[] x = (double[]) xAndY[0];
+			double[] y = (double[]) xAndY[1];
+			
+			if(!this.cancel.get())
+				data = BestAlphaStatsCalculator.resultsTable(array, lower, upper, y, x, threshold, accuracy, below, above, total);
+			
+			bestAlpha = BestAlphaStatsCalculator.getBestAlphaIndex(y, accuracy);
+			
+			if(!this.cancel.get())
+				new BestParametersGUI(blastDatabase, bestAlpha, threshold, confusionMat, counts, data, homologyDataContainer);
+		} catch (Exception e) {
 			Workbench.getInstance().error(e);
 			e.printStackTrace();
 		}
-		
-		WorkspaceDataTable data = null;
-		
-		Object[] xAndY = BestAlphaStatsCalculator.getXAndY(below, above, total, accuracy);
-		
-		double[] x = (double[]) xAndY[0];
-		double[] y = (double[]) xAndY[1];
-		
-		if(!this.cancel.get())
-			data = BestAlphaStatsCalculator.resultsTable(array, lower, upper, y, x, threshold, accuracy, below, above, total);
-		
-		bestAlpha = BestAlphaStatsCalculator.getBestAlphaIndex(y, accuracy);
-		
-		if(!this.cancel.get())
-			new BestParametersGUI(blastDatabase, bestAlpha, threshold, confusionMat, counts, data, homologyDataContainer);
 	};
 	
 	public void scorer(){
@@ -128,7 +123,7 @@ public class AnnotationEnzymesBestAlpha {
 						String score = (String) mainTableData.getValueAt(key, ecScoreColumnNumber);
 						
 						matrix[row][column] = Arrays.asList(ecNumber).get(1);
-						matrix[row][column+1] = Double.parseDouble(score);
+						matrix[row][column+1] = Double.parseDouble(score.replace("<", ""));
 						
 						row++;
 					}
@@ -485,29 +480,16 @@ public class AnnotationEnzymesBestAlpha {
 
 		return progress;
 	}
-	
-	
 
 	/**
 	 * @param cancel the cancel to set
 	 */
 	@Cancel
-	public void cancel() {
+	public void setCancel() {
 
-		String[] options = new String[2];
-		options[0] = "yes";
-		options[1] = "no";
-
-		int result = CustomGUI.stopQuestion("Cancel confirmation", "Are you sure you want to cancel the operation?", options);
-
-		if(result == 0) {
-
-			this.progress.setTime((GregorianCalendar.getInstance().getTimeInMillis()-GregorianCalendar.getInstance().getTimeInMillis()),1,1);
-
-			this.cancel.set(true);
-			
-			Workbench.getInstance().warn("operation canceled!");
-
-		}
-	}}		
+		progress.setTime(0, 0, 0);
+		Workbench.getInstance().warn("operation canceled!");
+		this.cancel.set(true);
+	}
+}		
 
