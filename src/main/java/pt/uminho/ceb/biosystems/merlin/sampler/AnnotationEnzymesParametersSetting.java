@@ -1,20 +1,11 @@
 package pt.uminho.ceb.biosystems.merlin.sampler;
 
-import java.io.IOException;
 import java.sql.SQLException;
 import java.sql.Statement;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
 import java.util.GregorianCalendar;
-import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
-import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-
-import org.apache.commons.lang.ArrayUtils;
 
 import es.uvigo.ei.aibench.core.operation.annotation.Cancel;
 import es.uvigo.ei.aibench.core.operation.annotation.Direction;
@@ -32,8 +23,6 @@ import pt.uminho.ceb.biosystems.merlin.database.connector.databaseAPI.HomologyAP
 import pt.uminho.ceb.biosystems.merlin.database.connector.datatypes.Connection;
 import pt.uminho.ceb.biosystems.merlin.database.connector.datatypes.DatabaseAccess;
 import pt.uminho.ceb.biosystems.merlin.services.annotation.AnnotationEnzymesServices;
-import pt.uminho.ceb.biosystems.merlin.utilities.datastructures.map.MapUtils;
-import pt.uminho.ceb.biosystems.merlin.utilities.io.FileUtils;
 
 @Operation(name="perform annotation using SamPler", description="generate random sample for enzyme's annotation")
 public class AnnotationEnzymesParametersSetting {
