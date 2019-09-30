@@ -209,8 +209,9 @@ public class AnnotationEnzymesParametersSetting {
 	
 	/**
 	 * @return
+	 * @throws Exception 
 	 */
-	private boolean resetScorer(String blastDatabase) {
+	private boolean resetScorer(String blastDatabase) throws Exception {
 
 		int i;
 
@@ -235,9 +236,10 @@ public class AnnotationEnzymesParametersSetting {
 			case 0:
 			{
 				if(blastDatabase.equals(""))
-					HomologyAPI.resetAllScorers(statement);
+					AnnotationEnzymesServices.resetAllScorers(this.workspace.getName());
 				else
-					HomologyAPI.resetDatabaseScorer(statement, blastDatabase);
+					AnnotationEnzymesServices.resetDatabaseScorer(this.workspace.getName(), blastDatabase);
+
 				return true;
 			}
 			default:
