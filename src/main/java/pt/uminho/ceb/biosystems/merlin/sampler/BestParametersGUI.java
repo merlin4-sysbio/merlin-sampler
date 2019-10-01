@@ -9,7 +9,6 @@ import java.awt.Insets;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.io.File;
-import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.GregorianCalendar;
@@ -38,8 +37,7 @@ import pt.uminho.ceb.biosystems.merlin.aibench.utilities.ExportToXLS;
 import pt.uminho.ceb.biosystems.merlin.aibench.utilities.MerlinUtils;
 import pt.uminho.ceb.biosystems.merlin.aibench.utilities.MyJTable;
 import pt.uminho.ceb.biosystems.merlin.core.datatypes.WorkspaceDataTable;
-import pt.uminho.ceb.biosystems.merlin.database.connector.databaseAPI.HomologyAPI;
-import pt.uminho.ceb.biosystems.merlin.database.connector.datatypes.Connection;
+import pt.uminho.ceb.biosystems.merlin.services.annotation.AnnotationEnzymesServices;
 
 public class BestParametersGUI extends javax.swing.JDialog{
 
@@ -220,17 +218,10 @@ public class BestParametersGUI extends javax.swing.JDialog{
 									try {
 										homologyDataContainer.commitToDatabase(blastDatabase);
 
+										AnnotationEnzymesServices.setBestAlphaFound(homologyDataContainer.getWorkspace().getName(), blastDatabase);
 
-										Connection connection = homologyDataContainer.getConnection();
-										Statement statement = connection.createStatement();
-
-										HomologyAPI.setBestAlphaFound(statement, blastDatabase);
-
-										if(HomologyAPI.hasCommitedData(statement))
+										if(AnnotationEnzymesServices.checkCommitedData(homologyDataContainer.getWorkspace().getName()))
 											homologyDataContainer.setHasCommittedData();
-
-										statement.close();
-										connection.closeConnection();
 
 									} 
 									catch (Exception e) {
