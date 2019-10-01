@@ -1,6 +1,5 @@
 package pt.uminho.ceb.biosystems.merlin.sampler;
 
-import java.sql.Statement;
 import java.util.GregorianCalendar;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -15,9 +14,6 @@ import pt.uminho.ceb.biosystems.merlin.aibench.datatypes.annotation.AnnotationEn
 import pt.uminho.ceb.biosystems.merlin.aibench.gui.CustomGUI;
 import pt.uminho.ceb.biosystems.merlin.aibench.utilities.AIBenchUtils;
 import pt.uminho.ceb.biosystems.merlin.aibench.utilities.TimeLeftProgress;
-import pt.uminho.ceb.biosystems.merlin.database.connector.databaseAPI.HomologyAPI;
-import pt.uminho.ceb.biosystems.merlin.database.connector.datatypes.Connection;
-import pt.uminho.ceb.biosystems.merlin.database.connector.datatypes.DatabaseAccess;
 import pt.uminho.ceb.biosystems.merlin.services.annotation.AnnotationEnzymesServices;
 import pt.uminho.ceb.biosystems.merlin.services.model.ModelGenesServices;
 
@@ -42,17 +38,13 @@ public class AnnotationEnzymesParametersSetting {
 
 		try {
 
-			DatabaseAccess dbAcess = this.workspace.getDatabase().getDatabaseAccess();
-			Connection conn = new Connection(dbAcess);
-			Statement stmt = conn.createStatement();
-
 			this.blastDatabase = AnnotationEnzymesServices.getLastestUsedBlastDatabase(this.workspace.getName());
 
 			if(resetScorer(blastDatabase)) {
 
 				this.progress.setTime(GregorianCalendar.getInstance().getTimeInMillis() - this.startTime, 0, 2, "deleting previous annotations...");
 
-				HomologyAPI.deleteHomologyData(blastDatabase, stmt);
+				AnnotationEnzymesServices.deleteFromHomologyDataByDatabaseID(this.workspace.getName(), blastDatabase);
 
 				this.progress.setTime(GregorianCalendar.getInstance().getTimeInMillis() - this.startTime, 0, 2, "reseting parameters...");
 
@@ -65,17 +57,11 @@ public class AnnotationEnzymesParametersSetting {
 			}
 			else {
 
-				stmt.close();
-				conn.closeConnection();
-
 				throw new Exception("cannot continue without reseting parameters...");
 			}
 			
 			Integer total = ModelGenesServices.countInitialMetabolicGenes(this.workspace.getName());
 			
-			stmt.close();
-			conn.closeConnection();
-
 			if(total != null)
 				sampleSize = (int) (total * (DEFAULT_RATIO/100.0));
 
