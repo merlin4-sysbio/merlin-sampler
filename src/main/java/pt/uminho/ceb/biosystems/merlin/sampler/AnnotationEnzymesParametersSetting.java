@@ -23,6 +23,7 @@ import pt.uminho.ceb.biosystems.merlin.database.connector.databaseAPI.HomologyAP
 import pt.uminho.ceb.biosystems.merlin.database.connector.datatypes.Connection;
 import pt.uminho.ceb.biosystems.merlin.database.connector.datatypes.DatabaseAccess;
 import pt.uminho.ceb.biosystems.merlin.services.annotation.AnnotationEnzymesServices;
+import pt.uminho.ceb.biosystems.merlin.services.model.ModelGenesServices;
 
 @Operation(name="perform annotation using SamPler", description="generate random sample for enzyme's annotation")
 public class AnnotationEnzymesParametersSetting {
@@ -79,7 +80,7 @@ public class AnnotationEnzymesParametersSetting {
 				throw new Exception("cannot continue without reseting parameters...");
 			}
 			
-			Integer total = HomologyAPI.countInitialMetabolicGenes(stmt);
+			Integer total = ModelGenesServices.countInitialMetabolicGenes(this.workspace.getName());
 			
 			stmt.close();
 			conn.closeConnection();
