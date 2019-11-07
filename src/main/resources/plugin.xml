@@ -23,7 +23,7 @@
         
        <extension uid="aibench.workbench" name="aibench.workbench.view">
             <icon-operation operation="operations.AnnotationEnzymesParametersSetting.ID"
-               icon="icons/Lifecycle/clipboard.png" />
+               icon="icons/Lifecycle/random.png" />
         </extension>
     </extensions>
 </plugin>
