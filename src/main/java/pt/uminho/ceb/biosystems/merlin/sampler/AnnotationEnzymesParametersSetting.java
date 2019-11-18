@@ -151,7 +151,7 @@ public class AnnotationEnzymesParametersSetting {
 			this.workspace = workspace;
 			this.homologyDataContainer = (AnnotationEnzymesAIB) AIBenchUtils.getEntity(this.workspace.getName(), AnnotationEnzymesAIB.class);
 
-			if(homologyDataContainer == null)
+			if(homologyDataContainer.getItemsList() == null)
 				throw new IllegalArgumentException("please open the enzymes annotation view before generating a new sample!");
 		}
 	}
