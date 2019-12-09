@@ -31,11 +31,11 @@ import javax.swing.table.TableCellRenderer;
 
 import es.uvigo.ei.aibench.workbench.Workbench;
 import es.uvigo.ei.aibench.workbench.utilities.Utilities;
-import pt.uminho.ceb.biosystems.merlin.aibench.datatypes.annotation.AnnotationEnzymesAIB;
-import pt.uminho.ceb.biosystems.merlin.aibench.utilities.CreateImageIcon;
-import pt.uminho.ceb.biosystems.merlin.aibench.utilities.ExportToXLS;
-import pt.uminho.ceb.biosystems.merlin.aibench.utilities.MerlinUtils;
-import pt.uminho.ceb.biosystems.merlin.aibench.utilities.MyJTable;
+import pt.uminho.ceb.biosystems.merlin.gui.datatypes.annotation.AnnotationEnzymesAIB;
+import pt.uminho.ceb.biosystems.merlin.gui.utilities.CreateImageIcon;
+import pt.uminho.ceb.biosystems.merlin.gui.utilities.ExportToXLS;
+import pt.uminho.ceb.biosystems.merlin.gui.utilities.MerlinUtils;
+import pt.uminho.ceb.biosystems.merlin.gui.utilities.MyJTable;
 import pt.uminho.ceb.biosystems.merlin.core.datatypes.WorkspaceDataTable;
 import pt.uminho.ceb.biosystems.merlin.services.annotation.AnnotationEnzymesServices;
 
