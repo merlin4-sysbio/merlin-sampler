@@ -5,7 +5,7 @@
 
 	<groupId>pt.uminho.ceb.biosystems.merlin</groupId>
 	<artifactId>merlin-sampler</artifactId>
-	<version>4.0.2.4-SNAPSHOT</version>
+	<version>4.0.03-SNAPSHOT</version>
 	<packaging>jar</packaging>
 
 	<name>merlin-sampler</name>
@@ -24,7 +24,7 @@
 		<maven.compiler.target>1.8</maven.compiler.target>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 		<maven.build.timestamp.format>yyyy</maven.build.timestamp.format>
-		<pt.uminho.ceb.biosystems.merlin.version>4.0.2.4-SNAPSHOT</pt.uminho.ceb.biosystems.merlin.version>
+		<pt.uminho.ceb.biosystems.merlin.version>4.0.03-SNAPSHOT</pt.uminho.ceb.biosystems.merlin.version>
 		<pt.uminho.ceb.biosystems.merlin.groupId>pt.uminho.ceb.biosystems.merlin</pt.uminho.ceb.biosystems.merlin.groupId>
 		<build.name>beta</build.name>
 		<merlin.plugins.directory>${project.basedir}/../merlin-project/merlin-gui/plugins</merlin.plugins.directory>
